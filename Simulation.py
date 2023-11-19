@@ -27,6 +27,8 @@ class Simulation:
         self.store_values = store_values
         self.save_dir = save_dir
         
+        self.max_save_updates = 100000 #Max number of updates to save
+        
     def init_animation(self):
         # Set plotting parameters
         msize='radius'
@@ -97,23 +99,28 @@ class Simulation:
             df.iloc[0] = [self.particles[i].position[0],self.particles[i].position[1],self.particles[i].position[2]
                           ,self.particles[i].velocity[0],self.particles[i].velocity[1],self.particles[i].velocity[2]]
             
-        
-        
-            
     def update_particle_history(self):
-        for i,p in enumerate(self.particles):
-            self.particle_history_dfs[i].iloc[self.updates] = [p.position[0],p.position[1],p.position[2],p.velocity[0],p.velocity[1],p.velocity[2]]
+        if self.updates >= self.max_save_updates:
+            print('Warning: Max number of updates reached')
+        else:
+            for i,p in enumerate(self.particles):
+                self.particle_history_dfs[i].iloc[self.updates] = [p.position[0],p.position[1],p.position[2],p.velocity[0],p.velocity[1],p.velocity[2]]
     def save_particle_history(self):
         #Delete rows with all zeros
         self.particle_history_dfs = [df.loc[(df!=0).any(axis=1)] for df in self.particle_history_dfs]
         [df.to_csv(f'{self.save_dir}/particles/p{self.particles[i].id}.csv',index=False) for i,df in enumerate(self.particle_history_dfs)]
     def save_particle_info(self):
-        self.particles_info_df = pd.DataFrame(columns=['id','mass','charge','spin','radius'])
+        self.particles_info_df = pd.DataFrame(columns=['id','mass','charge','spin','radius','use_gravity','use_electric','use_magnetic','use_spin','use_collisions'])
         self.particles_info_df['id'] = [p.id for p in self.particles]
         self.particles_info_df['mass'] = [p.mass for p in self.particles]
         self.particles_info_df['charge'] = [p.charge for p in self.particles]
         self.particles_info_df['spin'] = [p.spin for p in self.particles]
         self.particles_info_df['radius'] = [p.radius for p in self.particles]
+        self.particles_info_df['use_gravity'] = [p.use_gravity for p in self.particles]
+        self.particles_info_df['use_electric'] = [p.use_electric for p in self.particles]
+        self.particles_info_df['use_magnetic'] = [p.use_magnetic for p in self.particles]
+        self.particles_info_df['use_spin'] = [p.use_spin for p in self.particles]
+        self.particles_info_df['use_collisions'] = [p.use_collisions for p in self.particles]
         self.particles_info_df.to_csv(f'{self.save_dir}/particles_info.csv',index=False)
     def scale_animation(self):
         #Current limits
@@ -146,7 +153,7 @@ class Simulation:
         use_spin_mask = np.array([p.use_spin for p in self.particles])
         
         
-        # Animation function called sequentially
+        # update particles
         for i,particle in enumerate(self.particles):
             displacement_vector = displacement_cache[i]
             separation_vector = np.array([p.radius+particle.radius for p in self.particles])
@@ -161,7 +168,7 @@ class Simulation:
             self.update_particle_history()
             self.updates += 1
         t1 = time()
-        print(f'-Physics took {t1-t0:.3f} seconds')
+        print(f'--Physics update {self.updates} took {t1-t0:.3f} seconds')
 
     def animate(self, frame):
         print(f'Frame {frame}')
@@ -185,10 +192,23 @@ class Simulation:
         if show_animation:
             plt.show()
 
+    def simulate(self, updates=100, **kwargs):
+        os.makedirs(self.save_dir,exist_ok=True)
+        self.updates=0
+        if self.store_values:
+            self.init_particle_history(updates)
+        else:
+            print('Warning: Simulation is not storing values')
+        for i in range(updates):
+            self.update_particles()
+        if self.store_values:
+            self.save_particle_info()
+            self.save_particle_history()
+
     def save(self, frames=100,fps=30, bitrate=1800, **run_kwargs):
         os.makedirs(self.save_dir,exist_ok=True)
         if self.store_values:
-            self.init_particle_history((1+frames)*(1+self.animate_every))
+            self.init_particle_history(min((1+frames)*(1+self.animate_every),self.max_save_updates))
         # Save the animation to an mp4 or gif file
         if self.ani is None:
             self.run(show_animation=False,frames=frames,**run_kwargs)

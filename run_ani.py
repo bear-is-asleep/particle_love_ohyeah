@@ -26,7 +26,7 @@ boundary_type = 'reflective'
 #Simulation properties
 dt = 1
 animate_every = 10
-frames = 100
+frames = 1000
 interval = 20
 fps = 30
 bitrate = 1800
@@ -43,7 +43,7 @@ particles = [ Particle(id=i
                        ,radius=radius
                        ,color='blue' if i%2==0 else 'red'
                        ,use_gravity=use_gravity
-                       ,use_electric=use_electric) for i in range(20)
+                       ,use_electric=use_electric) for i in range(200)
 ]
 
 # SEtup boundary
@@ -55,4 +55,5 @@ sim = Simulation(particles, boundary
                  ,store_values=store_values
                  ,animate_every=animate_every)
 #sim.run(frames=frames, interval=interval)
-sim.save(fps=fps,bitrate=bitrate,frames=frames,interval=interval)
+#sim.save(fps=fps,bitrate=bitrate,frames=frames,interval=interval)
+sim.simulate(updates=frames)
