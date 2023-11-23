@@ -1,0 +1,74 @@
+particle1:
+  n: 20
+  mass: 1.0
+  charge: -1.0
+  spin: 1
+  radius: 1
+  color: 'blue'
+  use_gravity: false
+  use_electric: true
+  use_magnetic: false
+  use_spin: false
+  use_collisions: false
+  n_trail_points: 10
+
+particle2:
+  n: 20
+  mass: 1.0
+  charge: 1.0
+  spin: 1
+  radius: 1
+  color: 'red'
+  use_gravity: false
+  use_electric: true
+  use_magnetic: false
+  use_spin: false
+  use_collisions: false
+  n_trail_points: 10
+
+particle3:
+  n: 20
+  mass: 10
+  charge: 1.0
+  spin: 1
+  radius: 1
+  color: 'green'
+  use_gravity: true
+  use_electric: false
+  use_magnetic: false
+  use_spin: false
+  use_collisions: false
+  n_trail_points: 10
+
+particle4:
+  n: 20
+  mass: 1.0
+  charge: -1.0
+  spin: 1
+  radius: 1
+  color: 'yellow'
+  use_gravity: false
+  use_electric: false
+  use_magnetic: false
+  use_spin: true
+  use_collisions: false
+  n_trail_points: 10
+
+particle5:
+  n: 20
+  mass: 1.0
+  charge: -1.0
+  spin: 1
+  radius: 1
+  color: 'pink'
+  use_gravity: false
+  use_electric: true
+  use_magnetic: false
+  use_spin: false
+  use_collisions: false
+  n_trail_points: 10
+
+boundary:
+  box_size: 1000
+  type: 'reflective'
+

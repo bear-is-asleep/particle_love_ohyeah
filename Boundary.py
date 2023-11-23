@@ -13,6 +13,8 @@ class Boundary:
         #set boundary type
         self.type = type
         self.check_boundary_type(self.type)
+    def __str__(self):
+        return f'Boundary: x=[{self.x_min},{self.x_max}], y=[{self.y_min},{self.y_max}], z=[{self.z_min},{self.z_max}] type={self.type}'
     def check_boundary_type(self, type):
         if type not in ['reflective','passive']:
             raise ValueError(f'Boundary type {type} not supported')
@@ -25,5 +27,6 @@ class Boundary:
                     particle.velocity[1] *= -1
                 if particle.position[2] - particle.radius < self.z_min or particle.position[2] + particle.radius > self.z_max:
                     particle.velocity[2] *= -1
+        
         
             

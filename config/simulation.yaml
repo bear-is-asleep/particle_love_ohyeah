@@ -1,0 +1,11 @@
+simulation:
+  #Simulation properties
+  dt: .5
+  animate_every: 5
+  frames: 1000
+  interval: 20
+  fps: 30
+  bitrate: 1800
+  store_values: False
+  show_trails: True
+  mode: 'run' #available modes: 'run', 'simulate', 'save'

@@ -14,11 +14,12 @@ class Simulation:
     def __init__(self, particles, boundary,timestep
                  ,store_values=False
                  ,save_dir='trash'
-                 ,animate_every=1):
+                 ,animate_every=1
+                 ,show_trails=False):
         self.particles = particles
         self.boundary = boundary
         self.timestep = timestep
-        self.fig, self.ax = plt.subplots()
+        self.fig, self.ax = plt.subplots(figsize=(10,10))
         # Set style
         self.fig.patch.set_facecolor('black')
         plotters.set_style(self.ax, facecolor='black', axis_off=True)
@@ -26,16 +27,22 @@ class Simulation:
         self.animate_every = animate_every #Only update the animation every n frames
         self.store_values = store_values
         self.save_dir = save_dir
+        self.show_trails = show_trails
         
         self.max_save_updates = 100000 #Max number of updates to save
-        
+    def __str__(self):
+        return f'Simulation: dt={self.timestep}, show_trails={self.show_trails}, animate_every={self.animate_every}, store_values={self.store_values}'
     def init_animation(self):
         # Set plotting parameters
         msize='radius'
         mcolor='charge'
-        cmap='viridis'
+        cmap='bwr'
         # Set up the figure, axis, and plot elements for animation
         particles_data = []
+        if self.show_trails:
+            trail_data = []
+        class_handles = [] #for legend
+        class_ids = [] #get unique class ids
         if cmap is not None:
             if mcolor == 'charge':
                 max_mc = max([p.charge for p in self.particles])
@@ -57,7 +64,7 @@ class Simulation:
             elif msize == 'radius':
                 ms = (p.radius)*2
             else:
-                ms = 1
+                ms = (p.radius)*2
             #Set color
             if mcolor == 'charge':
                 mc = p.charge
@@ -71,7 +78,18 @@ class Simulation:
                 mc = plotters.map_value_to_color(mc, min_val=min_mc, max_val=max_mc, cmap=cmap)  
             if p.color is not None:
                 mc = p.color
-            particles_data.append(self.ax.plot([], [], 'o', ms=ms, color=mc)[0])
+            #Set marker
+            if p.marker is not None:
+                marker = p.marker
+            else:
+                marker = 'o'
+            label = f'Class {p.class_id}: m={p.mass}, q={p.charge}, s={p.spin}, r={p.radius}'
+            particles_data.append(self.ax.plot([], [], marker, ms=ms, color=mc,label=label)[0]) #points
+            if self.show_trails:
+                trail_data.append(self.ax.plot([], [], ms=ms, color=mc, alpha=0.3)[0]) #trails
+            if p.class_id not in class_ids:
+                class_handles.append(particles_data[i])
+                class_ids.append(p.class_id)
         #Initialize the boundary
         if self.boundary is not None :
             if self.boundary.type in ['reflective']:
@@ -82,8 +100,19 @@ class Simulation:
             self.ax.plot([self.boundary.x_min, self.boundary.x_max], [self.boundary.y_max, self.boundary.y_max], color=color, linestyle='-')
             self.ax.plot([self.boundary.x_min, self.boundary.x_min], [self.boundary.y_min, self.boundary.y_max], color=color, linestyle='-')
             self.ax.plot([self.boundary.x_max, self.boundary.x_max], [self.boundary.y_min, self.boundary.y_max], color=color, linestyle='-')
-        
+        #Set up legend
+        self.ax.legend(handles=class_handles,bbox_to_anchor=(1, 1))
+        print(class_handles)
         self.particles_data = particles_data
+        if self.show_trails:
+            self.trail_data = trail_data
+        self.class_handles = class_handles
+    def update_trails(self):
+        for i,p in enumerate(self.particles):
+            x = p.trail[:,0]
+            y = p.trail[:,1]
+            self.trail_data[i].set_data(x,y)
+    
     def init_particle_history(self,updates):
         os.makedirs(f'{self.save_dir}/particles',exist_ok=True)
         self.particle_history_dfs = [pd.DataFrame(columns=['x','y','z','vx','vy','vz']) for p in self.particles]
@@ -135,9 +164,11 @@ class Simulation:
         
         #Scale if needed
         if pxmax > xmax or pxmin < xmin:
-            self.ax.set_xlim(pxmin-radius*10,pxmax+radius*10) #times 10 cause i feel like it
+            xbuffer = (pxmax-pxmin)*0.3
+            self.ax.set_xlim(pxmin-xbuffer,pxmax+xbuffer) #times 10 cause i feel like it
         if pymax > ymax or pymin < ymin:
-            self.ax.set_ylim(pymin-radius*10,pymax+radius*10) #times 10 cause i feel like it
+            ybuffer = (pymax-pymin)*0.3
+            self.ax.set_ylim(pymin-ybuffer,pymax+ybuffer) #times 10 cause i feel like it
     def update_particles(self):
         t0 = time()
         # Get relation vectors
@@ -174,14 +205,18 @@ class Simulation:
         print(f'Frame {frame}')
         
         # Update particles
-        for i in range(self.animate_every):
+        for _ in range(self.animate_every):
             self.update_particles()
         t1 = time()
         for data, particle in zip(self.particles_data, self.particles):
             data.set_data(particle.position[0], particle.position[1])
+        if self.show_trails:
+            self.update_trails()
         self.scale_animation()
         t2 = time()
         print(f'-Animation took {t2-t1:.3f} seconds')
+        if self.show_trails:
+            return self.trail_data + self.particles_data
         return self.particles_data
 
     def run(self, frames=100, interval=50, show_animation=True, **kwargs):
