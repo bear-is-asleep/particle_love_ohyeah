@@ -18,7 +18,8 @@ class Simulation:
                  ,show_trails=False
                  ,G=1
                  ,k=1
-                 ,K=1):
+                 ,K=1
+                 ,use_cpu=True):
         #Set physics constants
         self.G=G
         self.k=k
@@ -28,6 +29,9 @@ class Simulation:
         self.particles = particles
         self.boundary = boundary
         self.timestep = timestep
+        
+        #Set computational properties
+        self.use_cpu = use_cpu
         
         # Set style
         self.fig, self.ax = plt.subplots(figsize=(15,9))
@@ -188,10 +192,8 @@ class Simulation:
             displacement_vector = displacement_cache[i]
             separation_vector = np.array([p.radius+particle.radius for p in self.particles])
             particle.update_force(displacement_vector, mass_vector, charge_vector, spin_vector, radius_vector, separation_vector,
-                                  G=self.G,K=self.K,k=self.k)
-        for i,particle in enumerate(self.particles):
-            displacement_vector = displacement_cache[i]
-            particle.update_state(self.timestep, displacement_vector, velocity_vector)
+                                  G=self.G,K=self.K,k=self.k,use_cpu=self.use_cpu)
+            particle.update_state(self.timestep, displacement_vector, velocity_vector, use_cpu=self.use_cpu)
         if self.boundary is not None:
             self.boundary.update_velocities(self.particles)
         if self.store_values:

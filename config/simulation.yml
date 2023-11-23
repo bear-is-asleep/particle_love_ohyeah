@@ -10,8 +10,10 @@ simulation:
   store_values: False
   show_trails: True
   n_trail_points: 30
-  mode: ['simulate','save'] #available modes: 'run', 'simulate', 'save'
+  use_cpu: False
+  #mode: ['simulate','save'] #available modes: 'run', 'simulate', 'save'
   #mode: 'save'
+  mode: 'run'
 
 physics:
   #Set forces to be about equal in strength

@@ -2,7 +2,7 @@ import numpy as np
 import numba as nb
   
 @nb.jit(nopython=True)
-def calc_force_parts(displacement_vector,mass,other_masses,charge,other_charges,spin,other_spins,separation_vector
+def calc_force_parts_cpu(displacement_vector,mass,other_masses,charge,other_charges,spin,other_spins,separation_vector
                      ,G=1,K=1,k=1):
     force = np.zeros(3) #3 vector
     for i in range(len(displacement_vector)):

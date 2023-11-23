@@ -1,5 +1,7 @@
 import yaml
 import numpy as np
+import os
+
 
 from Particle import Particle
 from Boundary import Boundary
@@ -8,8 +10,16 @@ from Simulation import Simulation
 #Set seed for reproducibility
 #np.random.seed(420)
 
-kingdom_yaml = 'config/kingdom1.yaml'
-simulation_yaml = 'config/simulation1.yaml'
+#Set YAML file paths
+kingdom_fname = 'config/kingdom.yml'
+simulation_fname = 'config/simulation.yml'
+
+def copy_yamls(save_path):
+		os.system(f'cp {kingdom_fname} {save_path}')
+		os.system(f'cp {simulation_fname} {save_path}')
+
+kingdom_yaml = kingdom_fname
+simulation_yaml = simulation_fname
 
 # Read YAML configurations
 with open(kingdom_yaml, 'r') as file:
@@ -75,7 +85,7 @@ for i in range(sum(num_particles)):
 	particles[i] = Particle(id=i
               ,class_id=j
 							,position=np.random.uniform(-box_size,box_size,3)
-							,velocity=np.random.uniform(-1,1,3)
+							,velocity=np.random.uniform(-vmax,vmax,3)
 							,mass=mass
 							,charge=charge
 							,spin=spin
@@ -93,7 +103,8 @@ sim = Simulation(particles, boundary
      		 ,show_trails=show_trails
          ,G=G
          ,K=K
-         ,k=k)
+         ,k=k
+         ,use_cpu=True)
 
 
 [print(particle) for particle in particles]
@@ -103,6 +114,8 @@ print(sim)
 if sim_mode == 'simulate':
 	sim.store_values = True #always store values when simulating
 	sim.simulate(updates=frames)
+  #Copy yamls to save directory
+	copy_yamls(save_path)
 elif sim_mode == 'run':
   sim.run(frames=frames, interval=interval)
 	
@@ -111,3 +124,5 @@ elif sim_mode == 'save':
 elif sim_mode == ['simulate','save']:
 	sim.store_values = True #always store values when simulating
 	sim.simulate_and_save(frames=frames,fps=fps,bitrate=bitrate,interval=interval)
+  #Copy yamls to save directory
+	copy_yamls(save_path)
