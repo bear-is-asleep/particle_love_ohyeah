@@ -3,28 +3,17 @@ import numba as nb
   
 @nb.jit(nopython=True)
 def calc_force_parts(displacement_vector,mass,other_masses,charge,other_charges,spin,other_spins,separation_vector
-                     ,use_gravity_mask
-                     ,use_electric_mask
-                     ,use_magnetic_mask
-                     ,use_spin_mask
-                     ,use_gravity=True
-                     ,use_electric=True
-                     ,use_magnetic=True
-                     ,use_spin=True
                      ,G=1,K=1,k=1):
     force = np.zeros(3) #3 vector
     for i in range(len(displacement_vector)):
         if np.all(displacement_vector[i] == 0): continue
         r = max(separation_vector[i],np.linalg.norm(displacement_vector[i])) #Prevent division by zero
         rhat = displacement_vector[i]/r
-        if use_gravity_mask[i] and use_gravity:
-            force += rhat*G*mass*other_masses[i]/r**2
-        if use_electric_mask[i] and use_electric:
-            force -= rhat*k*charge*other_charges[i]/r**2
-        if use_magnetic_mask[i] and use_magnetic:
-            pass
-        if use_spin_mask[i] and use_spin:
-            force += rhat*K*spin*other_spins[i]*r**2
+        
+        #Forces
+        force += rhat*G*mass*other_masses[i]/r**2 #gravity
+        force -= rhat*k*charge*other_charges[i]/r**2 #electric
+        force += rhat*K*spin*other_spins[i]*r**2 #spring
     return force #3 vector
 
 @nb.jit(nopython=True)

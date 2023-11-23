@@ -50,11 +50,6 @@ for i in range(sum(num_particles)):
 			spin = particle['spin']
 			radius = particle['radius']
 			color = particle['color']
-			use_gravity = particle['use_gravity']
-			use_electric = particle['use_electric']
-			use_magnetic = particle['use_magnetic']
-			use_spin = particle['use_spin']
-			use_collisions = particle['use_collisions']
 			n_trail_points = particle['n_trail_points']
 			break
    
@@ -67,12 +62,7 @@ for i in range(sum(num_particles)):
 							,spin=spin
 							,radius=radius
 							,color=color
-							,use_gravity=use_gravity
-							,use_electric=use_electric
-							,use_magnetic=use_magnetic
-							,use_spin=use_spin
-       						,use_collisions=use_collisions
-             				,n_trail_points=n_trail_points)
+             	,n_trail_points=n_trail_points)
 
 sim = Simulation(particles, boundary
 				 ,timestep=dt

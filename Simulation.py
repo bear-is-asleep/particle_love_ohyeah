@@ -139,17 +139,12 @@ class Simulation:
         self.particle_history_dfs = [df.loc[(df!=0).any(axis=1)] for df in self.particle_history_dfs]
         [df.to_csv(f'{self.save_dir}/particles/p{self.particles[i].id}.csv',index=False) for i,df in enumerate(self.particle_history_dfs)]
     def save_particle_info(self):
-        self.particles_info_df = pd.DataFrame(columns=['id','mass','charge','spin','radius','use_gravity','use_electric','use_magnetic','use_spin','use_collisions'])
+        self.particles_info_df = pd.DataFrame(columns=['id','mass','charge','spin','radius'])
         self.particles_info_df['id'] = [p.id for p in self.particles]
         self.particles_info_df['mass'] = [p.mass for p in self.particles]
         self.particles_info_df['charge'] = [p.charge for p in self.particles]
         self.particles_info_df['spin'] = [p.spin for p in self.particles]
         self.particles_info_df['radius'] = [p.radius for p in self.particles]
-        self.particles_info_df['use_gravity'] = [p.use_gravity for p in self.particles]
-        self.particles_info_df['use_electric'] = [p.use_electric for p in self.particles]
-        self.particles_info_df['use_magnetic'] = [p.use_magnetic for p in self.particles]
-        self.particles_info_df['use_spin'] = [p.use_spin for p in self.particles]
-        self.particles_info_df['use_collisions'] = [p.use_collisions for p in self.particles]
         self.particles_info_df.to_csv(f'{self.save_dir}/particles_info.csv',index=False)
     def scale_animation(self):
         #Current limits
@@ -178,18 +173,13 @@ class Simulation:
         spin_vector = np.array([p.spin for p in self.particles])
         radius_vector = np.array([p.radius for p in self.particles])
         velocity_vector = np.array([p.velocity for p in self.particles])
-        use_gravity_mask = np.array([p.use_gravity for p in self.particles])
-        use_electric_mask = np.array([p.use_electric for p in self.particles])
-        use_magnetic_mask = np.array([p.use_magnetic for p in self.particles])
-        use_spin_mask = np.array([p.use_spin for p in self.particles])
         
         
         # update particles
         for i,particle in enumerate(self.particles):
             displacement_vector = displacement_cache[i]
             separation_vector = np.array([p.radius+particle.radius for p in self.particles])
-            particle.update_force(displacement_vector, mass_vector, charge_vector, spin_vector, radius_vector, separation_vector
-                                  , use_gravity_mask, use_electric_mask, use_magnetic_mask, use_spin_mask)
+            particle.update_force(displacement_vector, mass_vector, charge_vector, spin_vector, radius_vector, separation_vector)
         for i,particle in enumerate(self.particles):
             displacement_vector = displacement_cache[i]
             particle.update_state(self.timestep, displacement_vector, velocity_vector)
