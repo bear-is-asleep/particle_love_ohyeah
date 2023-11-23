@@ -1,0 +1,50 @@
+particle1:
+  n: 3
+  mass: 100.0
+  charge: 0
+  spin: 0
+  radius: 10
+  color: 'green'
+  marker: 'o'
+  vmax: 20.
+
+particle2:
+  n: 0
+  mass: 1.0
+  charge: 1.0
+  spin: 0
+  radius: 1.5
+  color: 'red'
+  marker: 'o'
+  vmax: 1.
+
+particle3:
+  n: 0
+  mass: 1.0
+  charge: -1.0
+  spin: 0
+  radius: 1.5
+  color: 'blue'
+  marker: 'o'
+  vmax: 1.
+
+# particle4:
+#   n: 20
+#   mass: 1.0
+#   charge: 0
+#   spin: 1
+#   radius: 1.5
+#   color: 'yellow'
+#   marker: 's'
+#   vmax: 1.
+
+# particle5:
+#   n: 20
+#   mass: 1.0
+#   charge: -1.0
+#   spin: 1
+#   radius: 1.5
+#   color: 'pink'
+#   marker: 'x'
+#   vmax: 1.
+

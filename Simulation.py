@@ -4,6 +4,9 @@ import numpy as np
 from time import time
 import pandas as pd
 import os
+import pyopencl as cl
+import utils.gpu_helpers as gpu
+from physics.interactions import force_code
 
 #My imports
 from utils import ani_writers
@@ -18,7 +21,8 @@ class Simulation:
                  ,show_trails=False
                  ,G=1
                  ,k=1
-                 ,K=1):
+                 ,K=1
+                 ,use_cpu=True):
         #Set physics constants
         self.G=G
         self.k=k
@@ -28,6 +32,17 @@ class Simulation:
         self.particles = particles
         self.boundary = boundary
         self.timestep = timestep
+        
+        #Set computational properties
+        self.use_cpu = use_cpu
+        if not self.use_cpu:
+            self.ctx,self.queue,self.prg = gpu.initialize_gpu_function(force_code)
+        else:
+            self.ctx,self.queue,self.prg = None,None,None
+        print('Using CPU:',self.use_cpu
+              ,'\nContext:',self.ctx
+              ,'\nQueue:',self.queue
+              ,'\nProgram:',self.prg)
         
         # Set style
         self.fig, self.ax = plt.subplots(figsize=(15,9))
@@ -188,10 +203,10 @@ class Simulation:
             displacement_vector = displacement_cache[i]
             separation_vector = np.array([p.radius+particle.radius for p in self.particles])
             particle.update_force(displacement_vector, mass_vector, charge_vector, spin_vector, radius_vector, separation_vector,
-                                  G=self.G,K=self.K,k=self.k)
+                                  G=self.G,K=self.K,k=self.k,use_cpu=self.use_cpu,ctx=self.ctx,queue=self.queue,prg=self.prg)
         for i,particle in enumerate(self.particles):
             displacement_vector = displacement_cache[i]
-            particle.update_state(self.timestep, displacement_vector, velocity_vector)
+            particle.update_state(self.timestep, displacement_vector, velocity_vector,use_cpu=self.use_cpu)
         if self.boundary is not None:
             self.boundary.update_velocities(self.particles)
         if self.store_values:
