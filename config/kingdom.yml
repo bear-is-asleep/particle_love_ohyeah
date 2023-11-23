@@ -1,5 +1,5 @@
 particle1:
-  n: 5
+  n: 5000
   mass: 100.0
   charge: 0
   spin: 0

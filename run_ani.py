@@ -38,6 +38,7 @@ bitrate = sim_config['bitrate']
 store_values = sim_config['store_values']
 n_trail_points = sim_config['n_trail_points']
 sim_mode = sim_config['mode']
+compare = sim_config['compare'] #Compare CPU and GPU calculations
 save_path = f'simulations/{sim_config["name"]}'
 show_trails = True if n_trail_points > 0 else False
 
@@ -50,8 +51,6 @@ e_0 = np.double(physics_config['e_0'])
 mu_0 = np.double(physics_config['mu_0'])
 hbar = np.double(physics_config['hbar'])
 k = 1/(4*np.pi*e_0)
-
-print(type(G),type(K),type(c),type(e_0),type(mu_0),type(hbar),type(k))
 
 
 #Extract boundary properties
@@ -104,7 +103,8 @@ sim = Simulation(particles, boundary
          ,G=G
          ,K=K
          ,k=k
-         ,use_cpu=True)
+         ,use_cpu=True
+         ,compare=compare)
 
 
 [print(particle) for particle in particles]

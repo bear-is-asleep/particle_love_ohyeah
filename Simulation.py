@@ -19,7 +19,8 @@ class Simulation:
                  ,G=1
                  ,k=1
                  ,K=1
-                 ,use_cpu=True):
+                 ,use_cpu=True
+                 ,compare=False):
         #Set physics constants
         self.G=G
         self.k=k
@@ -32,6 +33,7 @@ class Simulation:
         
         #Set computational properties
         self.use_cpu = use_cpu
+        self.compare = compare
         
         # Set style
         self.fig, self.ax = plt.subplots(figsize=(15,9))
@@ -188,19 +190,33 @@ class Simulation:
         velocity_vector = np.array([p.velocity for p in self.particles])
         
         # update particles
+        ta = time()
         for i,particle in enumerate(self.particles):
             displacement_vector = displacement_cache[i]
             separation_vector = np.array([p.radius+particle.radius for p in self.particles])
             particle.update_force(displacement_vector, mass_vector, charge_vector, spin_vector, radius_vector, separation_vector,
                                   G=self.G,K=self.K,k=self.k,use_cpu=self.use_cpu)
             particle.update_state(self.timestep, displacement_vector, velocity_vector, use_cpu=self.use_cpu)
+        if self.compare:
+            tb = time()
+            particles_gpu = self.particles.copy()
+            for i,particle in enumerate(particles_gpu):
+                displacement_vector = displacement_cache[i]
+                separation_vector = np.array([p.radius+particle.radius for p in self.particles])
+                particle.update_force(displacement_vector, mass_vector, charge_vector, spin_vector, radius_vector, separation_vector,
+                                    G=self.G,K=self.K,k=self.k,use_cpu=not self.use_cpu)
+                particle.update_state(self.timestep, displacement_vector, velocity_vector, use_cpu=not self.use_cpu)
+        tc = time()
+        if self.compare:
+            print(f'--Physics update took {tb-ta:.3f} seconds (CPU) and {tc-tb:.3f} seconds (GPU)')
         if self.boundary is not None:
             self.boundary.update_velocities(self.particles)
         if self.store_values:
             self.update_particle_history()
         self.updates += 1
         t1 = time()
-        print(f'--Physics update {self.updates} took {t1-t0:.3f} seconds')
+        if not self.compare:
+            print(f'--Physics update {self.updates} took {t1-t0:.3f} seconds')
 
     def animate(self, frame):
         print(f'Frame {frame}')
@@ -228,7 +244,7 @@ class Simulation:
         if show_animation:
             plt.show()
 
-    def simulate(self, updates=100, **kwargs):
+    def simulate(self, updates=100, compare=False, **kwargs):
         os.makedirs(self.save_dir,exist_ok=True)
         self.updates=0
         self.init_particle_history(updates)
