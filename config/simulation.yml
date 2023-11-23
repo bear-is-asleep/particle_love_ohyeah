@@ -1,0 +1,29 @@
+simulation:
+  #Simulation properties
+  name: 'simulation4'
+  dt: .5
+  animate_every: 5
+  frames: 100
+  interval: 20
+  fps: 30
+  bitrate: 1800
+  store_values: False
+  show_trails: True
+  n_trail_points: 30
+  use_cpu: False
+  #mode: ['simulate','save'] #available modes: 'run', 'simulate', 'save'
+  #mode: 'save'
+  mode: 'run'
+
+physics:
+  #Set forces to be about equal in strength
+  G: 100
+  K: 1e-12
+  c: 1
+  e_0: 1
+  mu_0: 1
+  hbar: 1
+
+boundary:
+  box_size: 1000
+  type: 'reflective'
