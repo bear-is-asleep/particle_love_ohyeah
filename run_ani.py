@@ -5,8 +5,11 @@ from Particle import Particle
 from Boundary import Boundary
 from Simulation import Simulation
 
+#Set seed for reproducibility
+#np.random.seed(420)
+
 kingdom_yaml = 'config/kingdom1.yaml'
-simulation_yaml = 'config/simulation.yaml'
+simulation_yaml = 'config/simulation1.yaml'
 
 # Read YAML configurations
 with open(kingdom_yaml, 'r') as file:
@@ -23,22 +26,37 @@ interval = sim_config['interval']
 fps = sim_config['fps']
 bitrate = sim_config['bitrate']
 store_values = sim_config['store_values']
-show_trails = sim_config['show_trails']
+n_trail_points = sim_config['n_trail_points']
 sim_mode = sim_config['mode']
+save_path = f'simulations/{sim_config["name"]}'
+show_trails = True if n_trail_points > 0 else False
 
-particle_keys = [key for key in kingdom_config.keys() if key[:8] == 'particle']
-boundary = kingdom_config['boundary']
+#Extract physics properties
+physics_config = simulation_config['physics']
+G = np.double(physics_config['G'])
+K = np.double(physics_config['K'])
+c = np.double(physics_config['c'])
+e_0 = np.double(physics_config['e_0'])
+mu_0 = np.double(physics_config['mu_0'])
+hbar = np.double(physics_config['hbar'])
+k = 1/(4*np.pi*e_0)
+
+print(type(G),type(K),type(c),type(e_0),type(mu_0),type(hbar),type(k))
+
 
 #Extract boundary properties
+boundary = simulation_config['boundary']
 box_size = boundary['box_size']
 boundary_type = boundary['type']
 boundary = Boundary(x_min=-box_size, x_max=box_size, y_min=-box_size, y_max=box_size, z_min=-box_size, z_max=box_size, type=boundary_type)
 
-# Create particles
+# Initialize particles
+particle_keys = [key for key in kingdom_config.keys() if key[:8] == 'particle']
 num_particles = [kingdom_config[key]['n'] for key in particle_keys]
 running_particle_count = np.zeros(len(num_particles))
 particles = [None]*sum(num_particles)
 
+#Create particles
 for i in range(sum(num_particles)):
 	for j,n in enumerate(running_particle_count):
 		n_limit = num_particles[j]
@@ -50,7 +68,8 @@ for i in range(sum(num_particles)):
 			spin = particle['spin']
 			radius = particle['radius']
 			color = particle['color']
-			n_trail_points = particle['n_trail_points']
+			marker = particle['marker']
+			vmax = particle['vmax']
 			break
    
 	particles[i] = Particle(id=i
@@ -62,13 +81,20 @@ for i in range(sum(num_particles)):
 							,spin=spin
 							,radius=radius
 							,color=color
+							,marker=marker
              	,n_trail_points=n_trail_points)
 
+#Put the particles in the simulation
 sim = Simulation(particles, boundary
 				 ,timestep=dt
 				 ,store_values=store_values
 				 ,animate_every=animate_every
-     			,show_trails=show_trails)
+				 ,save_dir=save_path
+     		 ,show_trails=show_trails
+         ,G=G
+         ,K=K
+         ,k=k)
+
 
 [print(particle) for particle in particles]
 print(boundary)
@@ -78,6 +104,10 @@ if sim_mode == 'simulate':
 	sim.store_values = True #always store values when simulating
 	sim.simulate(updates=frames)
 elif sim_mode == 'run':
-	sim.run(frames=frames, interval=interval)
+  sim.run(frames=frames, interval=interval)
+	
 elif sim_mode == 'save':
 	sim.save(fps=fps,bitrate=bitrate,frames=frames,interval=interval)
+elif sim_mode == ['simulate','save']:
+	sim.store_values = True #always store values when simulating
+	sim.simulate_and_save(frames=frames,fps=fps,bitrate=bitrate,interval=interval)

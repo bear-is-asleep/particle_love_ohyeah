@@ -15,21 +15,33 @@ class Simulation:
                  ,store_values=False
                  ,save_dir='trash'
                  ,animate_every=1
-                 ,show_trails=False):
+                 ,show_trails=False
+                 ,G=1
+                 ,k=1
+                 ,K=1):
+        #Set physics constants
+        self.G=G
+        self.k=k
+        self.K=K
+        
+        #Set simulation properties        
         self.particles = particles
         self.boundary = boundary
         self.timestep = timestep
-        self.fig, self.ax = plt.subplots(figsize=(10,10))
+        
         # Set style
+        self.fig, self.ax = plt.subplots(figsize=(15,9))
         self.fig.patch.set_facecolor('black')
+        self.fig.subplots_adjust(right=0.7) #make room for legend
         plotters.set_style(self.ax, facecolor='black', axis_off=True)
+        
+        #Set animation properties
         self.ani = None
         self.animate_every = animate_every #Only update the animation every n frames
         self.store_values = store_values
         self.save_dir = save_dir
         self.show_trails = show_trails
         
-        self.max_save_updates = 100000 #Max number of updates to save
     def __str__(self):
         return f'Simulation: dt={self.timestep}, show_trails={self.show_trails}, animate_every={self.animate_every}, store_values={self.store_values}'
     def init_animation(self):
@@ -102,11 +114,11 @@ class Simulation:
             self.ax.plot([self.boundary.x_max, self.boundary.x_max], [self.boundary.y_min, self.boundary.y_max], color=color, linestyle='-')
         #Set up legend
         self.ax.legend(handles=class_handles,bbox_to_anchor=(1, 1))
-        print(class_handles)
         self.particles_data = particles_data
         if self.show_trails:
             self.trail_data = trail_data
         self.class_handles = class_handles
+
     def update_trails(self):
         for i,p in enumerate(self.particles):
             x = p.trail[:,0]
@@ -129,11 +141,8 @@ class Simulation:
                           ,self.particles[i].velocity[0],self.particles[i].velocity[1],self.particles[i].velocity[2]]
             
     def update_particle_history(self):
-        if self.updates >= self.max_save_updates:
-            print('Warning: Max number of updates reached')
-        else:
-            for i,p in enumerate(self.particles):
-                self.particle_history_dfs[i].iloc[self.updates] = [p.position[0],p.position[1],p.position[2],p.velocity[0],p.velocity[1],p.velocity[2]]
+        for i,p in enumerate(self.particles):
+            self.particle_history_dfs[i].iloc[self.updates] = [p.position[0],p.position[1],p.position[2],p.velocity[0],p.velocity[1],p.velocity[2]]
     def save_particle_history(self):
         #Delete rows with all zeros
         self.particle_history_dfs = [df.loc[(df!=0).any(axis=1)] for df in self.particle_history_dfs]
@@ -174,12 +183,12 @@ class Simulation:
         radius_vector = np.array([p.radius for p in self.particles])
         velocity_vector = np.array([p.velocity for p in self.particles])
         
-        
         # update particles
         for i,particle in enumerate(self.particles):
             displacement_vector = displacement_cache[i]
             separation_vector = np.array([p.radius+particle.radius for p in self.particles])
-            particle.update_force(displacement_vector, mass_vector, charge_vector, spin_vector, radius_vector, separation_vector)
+            particle.update_force(displacement_vector, mass_vector, charge_vector, spin_vector, radius_vector, separation_vector,
+                                  G=self.G,K=self.K,k=self.k)
         for i,particle in enumerate(self.particles):
             displacement_vector = displacement_cache[i]
             particle.update_state(self.timestep, displacement_vector, velocity_vector)
@@ -187,7 +196,7 @@ class Simulation:
             self.boundary.update_velocities(self.particles)
         if self.store_values:
             self.update_particle_history()
-            self.updates += 1
+        self.updates += 1
         t1 = time()
         print(f'--Physics update {self.updates} took {t1-t0:.3f} seconds')
 
@@ -213,31 +222,34 @@ class Simulation:
         self.init_animation()
         self.updates=0
         # Run the animation
-        self.ani = animation.FuncAnimation(self.fig, self.animate, frames=frames, interval=interval, blit=True)
+        self.ani = animation.FuncAnimation(self.fig, self.animate, frames=frames, interval=interval, blit=True, **kwargs)
         if show_animation:
             plt.show()
 
     def simulate(self, updates=100, **kwargs):
         os.makedirs(self.save_dir,exist_ok=True)
         self.updates=0
-        if self.store_values:
-            self.init_particle_history(updates)
-        else:
-            print('Warning: Simulation is not storing values')
+        self.init_particle_history(updates)
         for i in range(updates):
             self.update_particles()
-        if self.store_values:
-            self.save_particle_info()
-            self.save_particle_history()
+        self.save_particle_info()
+        self.save_particle_history()
 
     def save(self, frames=100,fps=30, bitrate=1800, **run_kwargs):
         os.makedirs(self.save_dir,exist_ok=True)
-        if self.store_values:
-            self.init_particle_history(min((1+frames)*(1+self.animate_every),self.max_save_updates))
         # Save the animation to an mp4 or gif file
         if self.ani is None:
             self.run(show_animation=False,frames=frames,**run_kwargs)
         ani_writers.save_animation(self.ani, f'{self.save_dir}/simulation.mp4', fps=fps, bitrate=bitrate)
-        if self.store_values:
-            self.save_particle_info()
-            self.save_particle_history()
+    
+    def simulate_and_save(self, frames=100, fps=30, bitrate=1800, **run_kwargs):
+        os.makedirs(self.save_dir,exist_ok=True)
+        self.updates=0
+        self.init_particle_history((1+frames)*(1+self.animate_every))
+        # Save the animation to an mp4 or gif file
+        if self.ani is None:
+            self.run(show_animation=False,frames=frames,**run_kwargs)
+        ani_writers.save_animation(self.ani, f'{self.save_dir}/simulation.mp4', fps=fps, bitrate=bitrate)
+        self.save_particle_info()
+        self.save_particle_history()
+        

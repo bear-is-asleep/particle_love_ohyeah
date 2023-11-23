@@ -1,5 +1,6 @@
 import numpy as np
 
+#Set forces to be about equal in strength
 G = 100
 K = 1e-7
 c = 1
