@@ -1,20 +1,20 @@
 simulation:
   #Simulation properties
-  name: 'simulation1'
+  name: 'simulation6'
   dt: .5
   animate_every: 5
-  frames: 100
+  frames: 1000
   interval: 20
   fps: 30
   bitrate: 1800
   store_values: False
   show_trails: True
   n_trail_points: 30
-  use_cpu: False
+  use_cpu: true
   #mode: ['simulate','save'] #available modes: 'run', 'simulate', 'save'
-  #mode: 'save'
-  mode: 'run'
-  compare: True
+  mode: 'save'
+  #mode: 'run'
+  compare: False
 
 physics:
   #Set forces to be about equal in strength
