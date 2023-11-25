@@ -242,7 +242,7 @@ class Simulation:
             t2 = time()
             print(f'----GPU Physics update took {t2-t0:.3f} seconds')
         def cpu_update(particles):
-            for i,particle in enumerate(particles[:10]):
+            for i,particle in enumerate(particles):
                 self_mask = self.mask_self_particles(particle)
                 displacement_vector = displacement_cache[i]
                 separation_vector = np.array([p.radius+particle.radius for p in self.particles])
