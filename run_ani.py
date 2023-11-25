@@ -6,6 +6,7 @@ import os
 from Particle import Particle
 from Boundary import Boundary
 from Simulation import Simulation
+from Grid import Grid
 
 #Set seed for reproducibility
 #np.random.seed(420)
@@ -37,6 +38,7 @@ fps = sim_config['fps']
 bitrate = sim_config['bitrate']
 store_values = sim_config['store_values']
 n_trail_points = sim_config['n_trail_points']
+use_cpu = sim_config['use_cpu']
 sim_mode = sim_config['mode']
 compare = sim_config['compare'] #Compare CPU and GPU calculations
 save_path = f'simulations/{sim_config["name"]}'
@@ -58,6 +60,11 @@ boundary = simulation_config['boundary']
 box_size = boundary['box_size']
 boundary_type = boundary['type']
 boundary = Boundary(x_min=-box_size, x_max=box_size, y_min=-box_size, y_max=box_size, z_min=-box_size, z_max=box_size, type=boundary_type)
+
+#Extract grid properties
+grid = simulation_config['grid']
+divisions = grid['divisions']
+grid = Grid(xmin=-box_size, xmax=box_size, ymin=-box_size, ymax=box_size, zmin=-box_size, zmax=box_size, divisions=divisions)
 
 # Initialize particles
 particle_keys = [key for key in kingdom_config.keys() if key[:8] == 'particle']
@@ -94,7 +101,7 @@ for i in range(sum(num_particles)):
              	,n_trail_points=n_trail_points)
 
 #Put the particles in the simulation
-sim = Simulation(particles, boundary
+sim = Simulation(particles, boundary, grid
 				 ,timestep=dt
 				 ,store_values=store_values
 				 ,animate_every=animate_every
@@ -103,11 +110,11 @@ sim = Simulation(particles, boundary
          ,G=G
          ,K=K
          ,k=k
-         ,use_cpu=True
+         ,use_cpu=use_cpu
          ,compare=compare)
 
-
-[print(particle) for particle in particles]
+if len(particles) < 10:
+	[print(particle) for particle in particles]
 print(boundary)
 print(sim)
 

@@ -2,7 +2,7 @@ simulation:
   #Simulation properties
   name: 'simulation1'
   dt: .5
-  animate_every: 50
+  animate_every: 5
   frames: 100
   interval: 20
   fps: 30
@@ -14,7 +14,7 @@ simulation:
   #mode: ['simulate','save'] #available modes: 'run', 'simulate', 'save'
   #mode: 'save'
   mode: 'run'
-  compare: False
+  compare: True
 
 physics:
   #Set forces to be about equal in strength
@@ -28,3 +28,6 @@ physics:
 boundary:
   box_size: 1000
   type: 'reflective'
+
+grid:
+  divisions: 0

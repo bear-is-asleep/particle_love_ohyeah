@@ -28,8 +28,9 @@ class Particle(object):
     def __str__(self):
         return f'Particle {self.id} : x={self.position}, v={self.velocity}, m={self.mass}, q={self.charge}, s={self.spin}, r={self.radius}, trail={self.n_trail_points}'
     def update_force(self,displacement_vector,mass_vector,charge_vector,spin_vector,radius_vector,separation_vector
-                     ,G=1,K=1,k=1,use_cpu=True,compare=False):
+                     ,G=1,K=1,k=1,use_cpu=True,device='cpu'):
         self.force = np.zeros(3)
+        #print(displacement_vector,self.mass,mass_vector,self.charge,charge_vector,self.spin,spin_vector,separation_vector)
         if use_cpu:
             self.force += interactions.calc_force_parts_cpu(displacement_vector,self.mass,mass_vector,self.charge,charge_vector,self.spin,spin_vector,separation_vector
                                                     ,G=G
@@ -39,13 +40,9 @@ class Particle(object):
             self.force += interactions.calc_force_parts_gpu(displacement_vector,self.mass,mass_vector,self.charge,charge_vector,self.spin,spin_vector,separation_vector
                                                     ,G=G
                                                     ,K=K
-                                                    ,k=k)
-        if compare:
-            interactions.compare_force_parts(displacement_vector,self.mass,mass_vector,self.charge,charge_vector,self.spin,spin_vector,separation_vector
-                                                    ,G=G
-                                                    ,K=K
-                                                    ,k=k)
-    def update_state(self,dt,displacement_vector,velocity_vector,use_cpu=True):
+                                                    ,k=k
+                                                    ,device=device)
+    def update_state(self,dt,displacement_vector,velocity_vector,use_cpu=True,device='cpu'):
         #self.velocity = interactions.calc_collision_parts(displacement_vector,self.mass,velocity_vector,self.radius)
         self.velocity += self.force/self.mass*dt
         self.position += self.velocity*dt
@@ -54,6 +51,9 @@ class Particle(object):
     def update_trail(self):
         self.trail[:-1] = self.trail[1:]
         self.trail[-1] = self.position
+    
+    def assign_grid_id(self,grid):
+        self.grid_id = grid.get_id(self.position)
     
         
     

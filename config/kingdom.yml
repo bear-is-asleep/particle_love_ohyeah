@@ -1,5 +1,5 @@
 particle1:
-  n: 5000
+  n: 2
   mass: 100.0
   charge: 0
   spin: 0
@@ -9,7 +9,7 @@ particle1:
   vmax: 20.
 
 particle2:
-  n: 0
+  n: 100
   mass: 1.0
   charge: 1.0
   spin: 0

@@ -4,6 +4,7 @@ import numpy as np
 from time import time
 import pandas as pd
 import os
+import torch
 
 #My imports
 from utils import ani_writers
@@ -11,7 +12,7 @@ from utils import plotters
 from physics import geometry
 
 class Simulation:
-    def __init__(self, particles, boundary,timestep
+    def __init__(self, particles, boundary,grid,timestep
                  ,store_values=False
                  ,save_dir='trash'
                  ,animate_every=1
@@ -30,10 +31,13 @@ class Simulation:
         self.particles = particles
         self.boundary = boundary
         self.timestep = timestep
+        self.grid=grid
+        self.assign_grid_ids() #assign grid ids to particles
         
         #Set computational properties
         self.use_cpu = use_cpu
         self.compare = compare
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
         # Set style
         self.fig, self.ax = plt.subplots(figsize=(15,9))
@@ -118,6 +122,8 @@ class Simulation:
             self.ax.plot([self.boundary.x_min, self.boundary.x_max], [self.boundary.y_max, self.boundary.y_max], color=color, linestyle='-')
             self.ax.plot([self.boundary.x_min, self.boundary.x_min], [self.boundary.y_min, self.boundary.y_max], color=color, linestyle='-')
             self.ax.plot([self.boundary.x_max, self.boundary.x_max], [self.boundary.y_min, self.boundary.y_max], color=color, linestyle='-')
+        if self.grid is not None:
+            self.grid.show_lines(self.ax,color='white',alpha=0.1)
         #Set up legend
         self.ax.legend(handles=class_handles,bbox_to_anchor=(1, 1))
         self.particles_data = particles_data
@@ -179,44 +185,96 @@ class Simulation:
         if pymax > ymax or pymin < ymin:
             ybuffer = (pymax-pymin)*0.3
             self.ax.set_ylim(pymin-ybuffer,pymax+ybuffer) #times 10 cause i feel like it
+            
+    def assign_grid_ids(self):
+        for i,p in enumerate(self.particles):
+            p.assign_grid_id(self.grid)
+        
+    def mask_self_particles(self,particle,to_torch=True):
+        if to_torch:
+            return torch.tensor([p.id != particle.id for p in self.particles], dtype=torch.bool, device=self.device)
+        return np.array([p.id != particle.id for p in self.particles])
+    
     def update_particles(self):
         t0 = time()
         # Get relation vectors
-        displacement_cache = geometry.get_displacement_cache(np.array([p.position for p in self.particles]))
+        grid_masks = self.grid.get_particles_for_ids(self.particles) #Size of grid_ids
+        separation_cache = geometry.get_separation_cache(np.array([p.radius for p in self.particles]))
+        displacement_cache = geometry.get_displacement_cache(np.array([p.position for p in self.particles]),None)
         mass_vector = np.array([p.mass for p in self.particles])
         charge_vector = np.array([p.charge for p in self.particles])
         spin_vector = np.array([p.spin for p in self.particles])
         radius_vector = np.array([p.radius for p in self.particles])
         velocity_vector = np.array([p.velocity for p in self.particles])
+        t1 = time()
+        print(f'---Getting relation vectors took {t1-t0:.3f} seconds')
         
-        # update particles
-        ta = time()
-        for i,particle in enumerate(self.particles):
-            displacement_vector = displacement_cache[i]
-            separation_vector = np.array([p.radius+particle.radius for p in self.particles])
-            particle.update_force(displacement_vector, mass_vector, charge_vector, spin_vector, radius_vector, separation_vector,
-                                  G=self.G,K=self.K,k=self.k,use_cpu=self.use_cpu)
-            particle.update_state(self.timestep, displacement_vector, velocity_vector, use_cpu=self.use_cpu)
-        if self.compare:
-            tb = time()
-            particles_gpu = self.particles.copy()
-            for i,particle in enumerate(particles_gpu):
+        def gpu_update(particles):
+            t0 = time()
+            displacement_cache_tt = torch.tensor(displacement_cache, dtype=torch.float32, device=self.device)
+            sepration_cache_tt = torch.tensor(separation_cache, dtype=torch.float32, device=self.device)
+            self_masks = ~np.identity(len(particles),dtype=bool)
+            mass_vector_tt = torch.tensor(mass_vector, dtype=torch.float32, device=self.device)
+            charge_vector_tt = torch.tensor(charge_vector, dtype=torch.float32, device=self.device)
+            spin_vector_tt = torch.tensor(spin_vector, dtype=torch.float32, device=self.device)
+            velocity_vector_tt = torch.tensor(velocity_vector, dtype=torch.float32, device=self.device)
+            radius_vector_tt = torch.tensor(radius_vector, dtype=torch.float32, device=self.device)
+            t1 = time()
+            print(f'----Converting to torch tensors took {t1-t0:.3f} seconds')
+            
+            for j,part_mask in enumerate(grid_masks):
+                filtered_particles = [p for p, m in zip(particles, part_mask) if m]
+                for i,particle in enumerate(filtered_particles):
+                    self_mask = self_masks[i] #mask of particles that are not self
+                    displacement_vector_tt = displacement_cache_tt[i]
+                    separation_vector_tt = sepration_cache_tt[i]
+                    
+                    particle.update_force(displacement_vector_tt[part_mask & self_mask], mass_vector_tt[part_mask & self_mask], charge_vector_tt[part_mask & self_mask], spin_vector_tt[part_mask & self_mask], radius_vector_tt[part_mask & self_mask], separation_vector_tt[part_mask & self_mask],
+                                        G=self.G,K=self.K,k=self.k,use_cpu=False,device=self.device)
+                particle.update_state(self.timestep, displacement_vector_tt[part_mask & self_mask], velocity_vector_tt[part_mask & self_mask], use_cpu=False,device=self.device)
+            for i,particle in enumerate(particles):
+                self_mask = self_masks[i]
+                displacement_vector_tt = displacement_cache_tt[i]
+                separation_vector_tt = sepration_cache_tt[i]
+                particle.update_force(displacement_vector_tt[self_mask], mass_vector_tt[self_mask], charge_vector_tt[self_mask], spin_vector_tt[self_mask], radius_vector_tt[self_mask], separation_vector_tt[self_mask],
+                                        G=self.G,K=self.K,k=self.k,use_cpu=False,device=self.device)
+                particle.update_state(self.timestep, displacement_vector_tt[self_mask], velocity_vector_tt[self_mask], use_cpu=False,device=self.device)
+            t2 = time()
+            print(f'----GPU Physics update took {t2-t0:.3f} seconds')
+        def cpu_update(particles):
+            for i,particle in enumerate(particles[:10]):
+                self_mask = self.mask_self_particles(particle)
                 displacement_vector = displacement_cache[i]
                 separation_vector = np.array([p.radius+particle.radius for p in self.particles])
-                particle.update_force(displacement_vector, mass_vector, charge_vector, spin_vector, radius_vector, separation_vector,
-                                    G=self.G,K=self.K,k=self.k,use_cpu=not self.use_cpu)
-                particle.update_state(self.timestep, displacement_vector, velocity_vector, use_cpu=not self.use_cpu)
-        tc = time()
-        if self.compare:
-            print(f'--Physics update took {tb-ta:.3f} seconds (CPU) and {tc-tb:.3f} seconds (GPU)')
+                particle.update_force(displacement_vector[self_mask], mass_vector[self_mask], charge_vector[self_mask], spin_vector[self_mask], radius_vector[self_mask], separation_vector[self_mask],
+                                        G=self.G,K=self.K,k=self.k,use_cpu=True)
+                particle.update_state(self.timestep, displacement_vector[self_mask], velocity_vector[self_mask], use_cpu=True)
+            
+        
+        # update particles
+        if self.use_cpu and not self.compare:
+            cpu_update(self.particles)
+        elif not self.compare and not self.use_cpu:
+            gpu_update(self.particles)
+        elif self.compare:
+            particles_cpu = self.particles.copy()
+            ta = time()
+            gpu_update(self.particles)
+            tb = time()
+            cpu_update(particles_cpu)
+            tc = time()
+            print(f'--Physics update took {tb-ta:.3f} seconds (GPU) and {tc-tb:.3f} seconds (CPU)')
         if self.boundary is not None:
             self.boundary.update_velocities(self.particles)
         if self.store_values:
             self.update_particle_history()
+        t2 = time()
+        self.assign_grid_ids()
+        t3 = time()
+        print(f'---Assigning grid ids took {t3-t2:.3f} seconds')
         self.updates += 1
-        t1 = time()
         if not self.compare:
-            print(f'--Physics update {self.updates} took {t1-t0:.3f} seconds')
+            print(f'--Physics update {self.updates} took {t3-t0:.3f} seconds')
 
     def animate(self, frame):
         print(f'Frame {frame}')

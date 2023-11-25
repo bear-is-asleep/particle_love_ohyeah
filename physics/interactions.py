@@ -18,22 +18,7 @@ def calc_force_parts_cpu(displacement_vector,mass,other_masses,charge,other_char
         force += rhat*K*spin*other_spins[i]*r**2 #spring
     return force #3 vector
 
-def calc_force_parts_gpu(displacement_vector, mass, other_masses, charge, other_charges, spin, other_spins, separation_vector, G=1, K=1, k=1):
-    # Convert all inputs to PyTorch tensors if they aren't already
-    displacement_vector = torch.tensor(displacement_vector, dtype=torch.float32)
-    other_masses = torch.tensor(other_masses, dtype=torch.float32)
-    other_charges = torch.tensor(other_charges, dtype=torch.float32)
-    other_spins = torch.tensor(other_spins, dtype=torch.float32)
-    separation_vector = torch.tensor(separation_vector, dtype=torch.float32)
-
-    # Ensure the tensors are on the same device (e.g., CPU or GPU)
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    displacement_vector = displacement_vector.to(device)
-    other_masses = other_masses.to(device)
-    other_charges = other_charges.to(device)
-    other_spins = other_spins.to(device)
-    separation_vector = separation_vector.to(device)
-
+def calc_force_parts_gpu(displacement_vector, mass, other_masses, charge, other_charges, spin, other_spins, separation_vector, G=1, K=1, k=1,device='cpu'):
     # Calculate the norms (r) and normalized displacement vectors (rhat)
     norms = torch.norm(displacement_vector, dim=1)
     r = torch.max(separation_vector, norms)
