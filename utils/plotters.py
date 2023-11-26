@@ -12,13 +12,10 @@ def map_value_to_color(value, min_val, max_val, cmap='viridis',return_hex=True):
         return mcolors.rgb2hex(rgb_color[:3])
     return rgb_color
   
-def set_style(ax, facecolor='black', axis_off=True):
+def set_style(ax, facecolor='black', axis_off=True, elev=30., azim=30.):
     ax.set_facecolor(facecolor)
     if axis_off:
         ax.axis('off')
+    ax.view_init(elev=elev, azim=azim)
         
-def add_slider(self, ax, label, valmin, valmax, valinit, valfmt):
-    slider = Slider(ax, label, valmin, valmax, valinit=valinit, valfmt=valfmt)
-    slider.on_changed(self.update_parameters)
-    return slider
         

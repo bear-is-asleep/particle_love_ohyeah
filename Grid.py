@@ -1,9 +1,11 @@
 import numpy as np
 import pandas as pd
 from time import time
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 class Grid:
-    def __init__(self, xmin,xmax,ymin,ymax,zmin,zmax, divisions):
+    def __init__(self, xmin,xmax,ymin,ymax,zmin,zmax, divisions, color='white'
+                 ,attributes=['id','x','y','z']):
         #Define grid boundaries
         self.xmin = xmin
         self.xmax = xmax
@@ -14,33 +16,35 @@ class Grid:
         self.divisions = divisions
         
         #Define grid properties
-        self.attributes = ['id','x','y','z']
+        self.attributes = attributes
         
         #Initialize grid
         self.init_grid()
         self.grid_min = np.array([self.xmin,self.ymin,self.zmin])
         
     def init_grid(self):
-        
         #Split the grid into n_grid_splits along each axis
         xdivisions = np.linspace(self.xmin,self.xmax,self.divisions+2)
         self.dx = xdivisions[1]-xdivisions[0]
         ydivisions = np.linspace(self.ymin,self.ymax,self.divisions+2)
         self.dy = ydivisions[1]-ydivisions[0]
-        #only one z division for now
-        zdivisions = np.linspace(self.zmin,self.zmax,2)
+        zdivisions = np.linspace(self.zmin,self.zmax,self.divisions+2)
         self.dz = zdivisions[1]-zdivisions[0]
-        
-        self.grid = np.zeros((self.divisions+1,self.divisions+1,1,len(self.attributes)))
+        self.grid = np.zeros((self.divisions+2,self.divisions+2,self.divisions+2,len(self.attributes)+1))
         
         iden = 0
-        for i in range(len(xdivisions)-1):
-            for j in range(len(ydivisions)-1):
-                self.grid[i,j,0,0] = iden
-                self.grid[i,j,0,1] = xdivisions[i] + self.dx/2
-                self.grid[i,j,0,2] = ydivisions[j] + self.dy/2
-                self.grid[i,j,0,3] = zdivisions[0] + self.dz/2
+        for i in range(len(xdivisions)):
+            for j in range(len(ydivisions)):
+                for k in range(len(zdivisions)):
+                    self.grid[i,j,k,0] = iden
+                    self.grid[i,j,k,1] = xdivisions[i]
+                    self.grid[i,j,k,2] = ydivisions[j]
+                    self.grid[i,j,k,3] = zdivisions[k]
+                    for l in range(4,len(self.attributes)+1):
+                        self.grid[i,j,k,l] = iden
+                    iden += 1
                 iden += 1
+            iden+=1
         self.meshgrid = np.meshgrid(xdivisions,ydivisions,zdivisions,indexing='ij')
         self.ids = self.grid[:,:,:,0].flatten()
     def get_id(self, position):
@@ -53,7 +57,7 @@ class Grid:
             #put it in the closest grid
             idx = np.clip(idx,0,self.divisions)
             idy = np.clip(idy,0,self.divisions)
-            idz = np.clip(idz,0,0)
+            idz = np.clip(idz,0,self.divisions)
             #raise ValueError(f'Particle at position {position} is outside the grid')
             
         #Return the grid id
@@ -63,10 +67,22 @@ class Grid:
         xx, yy, zz = self.meshgrid
         xs = np.unique(xx.flatten())
         ys = np.unique(yy.flatten())
+        zs = np.unique(zz.flatten())
+        
+        # Create lines for the grid structure
+        lines = []
         for x in xs:
-            ax.axvline(x,**pltkwargs)
+            for z in zs:
+                lines.append([(x, ys[0], z), (x, ys[-1], z)])
         for y in ys:
-            ax.axhline(y,**pltkwargs)
+            for z in zs:
+                lines.append([(xs[0], y, z), (xs[-1], y, z)])
+        for y in ys:
+            for x in xs:
+                lines.append([(x, y, zs[0]), (x, y, zs[-1])])
+        line_collection = Line3DCollection(lines,alpha=1/(5*self.divisions+1),**pltkwargs)
+
+        ax.add_collection3d(line_collection)
     def get_particles_for_ids(self,particles):
         #Return list the length of particles containing the list indices of particles in each grid
         masks = [None]*len(self.ids)

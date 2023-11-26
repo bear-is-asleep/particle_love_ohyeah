@@ -1,15 +1,15 @@
 particle1:
-  n: 2
+  n: 20
   mass: 100.0
   charge: 0
   spin: 0
-  radius: 10
+  radius: 100
   color: 'green'
   marker: 'o'
-  vmax: 20.
+  vmax: 0.00000001
 
 particle2:
-  n: 100
+  n: 0
   mass: 1.0
   charge: 1.0
   spin: 0

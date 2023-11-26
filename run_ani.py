@@ -3,13 +3,15 @@ import numpy as np
 import os
 
 
-from Particle import Particle
+from Particle import RelativisticParticle as Particle
 from Boundary import Boundary
 from Simulation import Simulation
-from Grid import Grid
+from Field import Gravity
+
+from globals.maps import FIELD_MAP
 
 #Set seed for reproducibility
-#np.random.seed(420)
+np.random.seed(420)
 
 #Set YAML file paths
 kingdom_fname = 'config/kingdom.yml'
@@ -38,10 +40,9 @@ fps = sim_config['fps']
 bitrate = sim_config['bitrate']
 store_values = sim_config['store_values']
 n_trail_points = sim_config['n_trail_points']
-use_cpu = sim_config['use_cpu']
 sim_mode = sim_config['mode']
-compare = sim_config['compare'] #Compare CPU and GPU calculations
-save_path = f'simulations/{sim_config["name"]}'
+use_fields = sim_config['use_fields']
+compare = sim_config['compare']
 show_trails = True if n_trail_points > 0 else False
 
 #Extract physics properties
@@ -61,10 +62,15 @@ box_size = boundary['box_size']
 boundary_type = boundary['type']
 boundary = Boundary(x_min=-box_size, x_max=box_size, y_min=-box_size, y_max=box_size, z_min=-box_size, z_max=box_size, type=boundary_type)
 
-#Extract grid properties
-grid = simulation_config['grid']
-divisions = grid['divisions']
-grid = Grid(xmin=-box_size, xmax=box_size, ymin=-box_size, ymax=box_size, zmin=-box_size, zmax=box_size, divisions=divisions)
+#Extract field properties
+fields = simulation_config['fields']
+divisions = fields['divisions']
+show_field = fields['show_field']
+#Gravity
+gravity = fields['gravity']
+gravity = Gravity(xmin=-box_size, xmax=box_size, ymin=-box_size, ymax=box_size, zmin=-box_size, zmax=box_size, divisions=divisions, attributes=['id', 'x', 'y', 'z', 'g'], dynamic=gravity['dynamic'])
+
+fields = [gravity]
 
 # Initialize particles
 particle_keys = [key for key in kingdom_config.keys() if key[:8] == 'particle']
@@ -87,45 +93,67 @@ for i in range(sum(num_particles)):
 			marker = particle['marker']
 			vmax = particle['vmax']
 			break
-   
+	velocity = np.random.uniform(-1,1,3)
+	velocity = velocity/np.linalg.norm(velocity)*vmax #scale to vmax
+	position = np.random.uniform(-box_size,box_size,3)
+ 
+	if i == 0: 
+		velocity = np.array([0,vmax,0],dtype=float)
+		position = np.array([0,500,0],dtype=float)
+	elif i == 1: 
+		velocity = np.array([0,-vmax,0],dtype=float)
+		position = np.array([0,-500,0],dtype=float)
 	particles[i] = Particle(id=i
               ,class_id=j
-							,position=np.random.uniform(-box_size,box_size,3)
-							,velocity=np.random.uniform(-vmax,vmax,3)
+							,position=position
+							,velocity=velocity#np.random.uniform(-vmax/2,vmax/2,3) #stay below c
 							,mass=mass
 							,charge=charge
 							,spin=spin
+       				,c=c #speed of light
 							,radius=radius
 							,color=color
 							,marker=marker
              	,n_trail_points=n_trail_points)
-
+if sim_mode != 'run':
+	for i in range(int(1e6)):
+		save_path = f'simulations/{sim_config["name"]}{i}'
+		if not os.path.exists(save_path):
+			break
+else:
+	save_path = 'trash'
+if show_field is None:
+  show_field_ind = None
+else:
+  show_field_ind = FIELD_MAP[show_field]
 #Put the particles in the simulation
-sim = Simulation(particles, boundary, grid
-				 ,timestep=dt
+sim = Simulation(particles, boundary, fields
+				 ,dt=dt
 				 ,store_values=store_values
 				 ,animate_every=animate_every
 				 ,save_dir=save_path
      		 ,show_trails=show_trails
+         ,show_field_ind=show_field_ind
+         ,compare=compare
+         ,use_fields=use_fields
          ,G=G
          ,K=K
          ,k=k
-         ,use_cpu=use_cpu
-         ,compare=compare)
+         ,c=c)
 
 if len(particles) < 10:
 	[print(particle) for particle in particles]
 print(boundary)
 print(sim)
 
-if sim_mode == 'simulate':
+if sim_mode == 'run':
+  sim.run(frames=frames, interval=interval)
+elif sim_mode == 'simulate':
 	sim.store_values = True #always store values when simulating
 	sim.simulate(updates=frames)
   #Copy yamls to save directory
 	copy_yamls(save_path)
-elif sim_mode == 'run':
-  sim.run(frames=frames, interval=interval)
-	
+
 elif sim_mode == 'save':
 	sim.save(fps=fps,bitrate=bitrate,frames=frames,interval=interval)
 elif sim_mode == ['simulate','save']:

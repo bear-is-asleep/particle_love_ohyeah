@@ -5,3 +5,4 @@ pandas==                       1.5.2
 PyYAML==                       6.0
 scipy
 torch==                    1.13.1
+torch_geometric==          2.4.0

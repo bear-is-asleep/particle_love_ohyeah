@@ -9,38 +9,45 @@ import torch
 #My imports
 from utils import ani_writers
 from utils import plotters
-from physics import geometry
+from physics import geometry,fields,interactions,relativity
+from globals.maps import *
+from Particle import ParticleGraph
 
 class Simulation:
-    def __init__(self, particles, boundary,grid,timestep
+    def __init__(self, particles, boundary,fields,dt
                  ,store_values=False
                  ,save_dir='trash'
                  ,animate_every=1
                  ,show_trails=False
+                 ,show_field_ind=None #index of field to show
+                 ,compare=False
+                 ,use_fields=False
                  ,G=1
                  ,k=1
                  ,K=1
-                 ,use_cpu=True
-                 ,compare=False):
+                 ,c=1):
         #Set physics constants
         self.G=G
         self.k=k
         self.K=K
+        self.c=c
         
         #Set simulation properties        
         self.particles = particles
         self.boundary = boundary
-        self.timestep = timestep
-        self.grid=grid
+        self.dt = dt
+        self.fields=fields
         self.assign_grid_ids() #assign grid ids to particles
+        self.init_particle_graphs() #initialize particle graph
         
         #Set computational properties
-        self.use_cpu = use_cpu
-        self.compare = compare
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.compare = compare
+        self.use_fields = use_fields
         
         # Set style
-        self.fig, self.ax = plt.subplots(figsize=(15,9))
+        self.fig = plt.figure(figsize=(15,9))
+        self.ax = self.fig.add_subplot(projection='3d')
         self.fig.patch.set_facecolor('black')
         self.fig.subplots_adjust(right=0.7) #make room for legend
         plotters.set_style(self.ax, facecolor='black', axis_off=True)
@@ -51,9 +58,10 @@ class Simulation:
         self.store_values = store_values
         self.save_dir = save_dir
         self.show_trails = show_trails
+        self.show_field_ind = show_field_ind
         
     def __str__(self):
-        return f'Simulation: dt={self.timestep}, show_trails={self.show_trails}, animate_every={self.animate_every}, store_values={self.store_values}'
+        return f'Simulation: dt={self.dt}, show_trails={self.show_trails}, animate_every={self.animate_every}, store_values={self.store_values}'
     def init_animation(self):
         # Set plotting parameters
         msize='radius'
@@ -65,6 +73,7 @@ class Simulation:
             trail_data = []
         class_handles = [] #for legend
         class_ids = [] #get unique class ids
+        fields_data = [] #for fields
         if cmap is not None:
             if mcolor == 'charge':
                 max_mc = max([p.charge for p in self.particles])
@@ -106,9 +115,9 @@ class Simulation:
             else:
                 marker = 'o'
             label = f'Class {p.class_id}: m={p.mass}, q={p.charge}, s={p.spin}, r={p.radius}'
-            particles_data.append(self.ax.plot([], [], marker, ms=ms, color=mc,label=label)[0]) #points
+            particles_data.append(self.ax.scatter(p.position[0], p.position[1], p.position[2], marker=marker, s=ms, color=mc,label=label)) #points
             if self.show_trails:
-                trail_data.append(self.ax.plot([], [], ms=ms, color=mc, alpha=0.3)[0]) #trails
+                trail_data.append(self.ax.plot([], [], [], ms=ms, color=mc, alpha=0.2)[0]) #trails
             if p.class_id not in class_ids:
                 class_handles.append(particles_data[i])
                 class_ids.append(p.class_id)
@@ -118,25 +127,43 @@ class Simulation:
                 color = 'white'
             elif self.boundary.type in ['passive']:
                 color = 'black'
-            self.ax.plot([self.boundary.x_min, self.boundary.x_max], [self.boundary.y_min, self.boundary.y_min], color=color, linestyle='-')
-            self.ax.plot([self.boundary.x_min, self.boundary.x_max], [self.boundary.y_max, self.boundary.y_max], color=color, linestyle='-')
-            self.ax.plot([self.boundary.x_min, self.boundary.x_min], [self.boundary.y_min, self.boundary.y_max], color=color, linestyle='-')
-            self.ax.plot([self.boundary.x_max, self.boundary.x_max], [self.boundary.y_min, self.boundary.y_max], color=color, linestyle='-')
-        if self.grid is not None:
-            self.grid.show_lines(self.ax,color='white',alpha=0.1)
+            pc = self.boundary.make_3dpatches(edgecolor=color,alpha=0.1,linewidths=2)
+            self.ax.add_collection3d(pc)
+            self.ax.set_xlim(self.boundary.x_min,self.boundary.x_max)
+            self.ax.set_ylim(self.boundary.y_min,self.boundary.y_max)
+            self.ax.set_zlim(self.boundary.z_min,self.boundary.z_max)
+        if self.fields is not None and self.show_field_ind is not None:
+            fields_data.append(self.fields[self.show_field_ind].show_field(self.ax,cmap='bwr',alpha=0.5,marker='s'))
+            if self.fields[self.show_field_ind].divisions <= 25:
+                self.fields[self.show_field_ind].show_lines(self.ax,color='white')
         #Set up legend
         self.ax.legend(handles=class_handles,bbox_to_anchor=(1, 1))
         self.particles_data = particles_data
         if self.show_trails:
             self.trail_data = trail_data
         self.class_handles = class_handles
+        self.fields_data = fields_data
 
     def update_trails(self):
         for i,p in enumerate(self.particles):
+            p.update_trail()
             x = p.trail[:,0]
             y = p.trail[:,1]
-            self.trail_data[i].set_data(x,y)
-    
+            z = p.trail[:,2]
+            self.trail_data[i].set_xdata(x)
+            self.trail_data[i].set_ydata(y)
+            self.trail_data[i].set_3d_properties(z)
+    def update_field_plot(self):
+        field = self.fields[self.show_field_ind]
+        field_data = self.fields_data[self.show_field_ind]
+        if field.dynamic:
+            grid = field.grid
+            x = grid[:,:,:,1].flatten()
+            y = grid[:,:,:,2].flatten()
+            z = grid[:,:,:,3].flatten()
+            field = grid[:,:,:,4].flatten()
+            field_data._offsets3d = (x,y,z)
+            field_data.set_array(field)
     def init_particle_history(self,updates):
         os.makedirs(f'{self.save_dir}/particles',exist_ok=True)
         self.particle_history_dfs = [pd.DataFrame(columns=['x','y','z','vx','vy','vz']) for p in self.particles]
@@ -181,112 +208,163 @@ class Simulation:
         #Scale if needed
         if pxmax > xmax or pxmin < xmin:
             xbuffer = (pxmax-pxmin)*0.3
-            self.ax.set_xlim(pxmin-xbuffer,pxmax+xbuffer) #times 10 cause i feel like it
+            #self.ax.set_xlim(pxmin-xbuffer,pxmax+xbuffer) #times 10 cause i feel like it
         if pymax > ymax or pymin < ymin:
             ybuffer = (pymax-pymin)*0.3
-            self.ax.set_ylim(pymin-ybuffer,pymax+ybuffer) #times 10 cause i feel like it
+            #self.ax.set_ylim(pymin-ybuffer,pymax+ybuffer) #times 10 cause i feel like it
             
     def assign_grid_ids(self):
         for i,p in enumerate(self.particles):
-            p.assign_grid_id(self.grid)
+            p.assign_grid_id(self.fields[0])
         
     def mask_self_particles(self,particle,to_torch=True):
         if to_torch:
             return torch.tensor([p.id != particle.id for p in self.particles], dtype=torch.bool, device=self.device)
         return np.array([p.id != particle.id for p in self.particles])
     
-    def update_particles(self):
+    def init_particle_graphs(self):
+        self.particle_graphs = [None]*len(self.fields)
+        self.particle_graphs[FIELD_MAP['gravity']] = ParticleGraph(self.particles,self.c)   
+    
+    def update_physics(self):
         t0 = time()
-        # Get relation vectors
-        grid_masks = self.grid.get_particles_for_ids(self.particles) #Size of grid_ids
-        separation_cache = geometry.get_separation_cache(np.array([p.radius for p in self.particles]))
-        displacement_cache = geometry.get_displacement_cache(np.array([p.position for p in self.particles]),None)
-        mass_vector = np.array([p.mass for p in self.particles])
-        charge_vector = np.array([p.charge for p in self.particles])
-        spin_vector = np.array([p.spin for p in self.particles])
-        radius_vector = np.array([p.radius for p in self.particles])
-        velocity_vector = np.array([p.velocity for p in self.particles])
         t1 = time()
         print(f'---Getting relation vectors took {t1-t0:.3f} seconds')
-        
-        def gpu_update(particles):
+        # Update particle positions
+        def update_particle_forces(particles):
             t0 = time()
-            displacement_cache_tt = torch.tensor(displacement_cache, dtype=torch.float32, device=self.device)
-            sepration_cache_tt = torch.tensor(separation_cache, dtype=torch.float32, device=self.device)
-            self_masks = ~np.identity(len(particles),dtype=bool)
-            mass_vector_tt = torch.tensor(mass_vector, dtype=torch.float32, device=self.device)
-            charge_vector_tt = torch.tensor(charge_vector, dtype=torch.float32, device=self.device)
-            spin_vector_tt = torch.tensor(spin_vector, dtype=torch.float32, device=self.device)
-            velocity_vector_tt = torch.tensor(velocity_vector, dtype=torch.float32, device=self.device)
-            radius_vector_tt = torch.tensor(radius_vector, dtype=torch.float32, device=self.device)
+            
+            #Unpack particle graph
+            edge_index = self.particle_graphs[FIELD_MAP['gravity']].edge_index #2,M - matched
+            edge_mask = self.particle_graphs[FIELD_MAP['gravity']].edge_mask #N,N 
+            
+            #Edge attributes
+            edge_attr = self.particle_graphs[FIELD_MAP['gravity']].edge_attr #M,4
+            edge_attr = edge_attr[edge_mask[edge_index[0], edge_index[1]]]
+            distances = edge_attr[:,DX_IND:DZ_IND+1] #M,3
+            rel_velocities = edge_attr[:,RVX_IND:RVZ_IND+1] #M,3
+            separations = edge_attr[:,SEP_IND] #M
+            dts = relativity.calc_gamma(rel_velocities,c=self.c)*self.dt #N
+            
+            # print('edge_index: ',edge_index)
+            # print('edge_attr: ',edge_attr)
+            # print('distances: ',distances)
+            # print('rel_velocities: ',rel_velocities)
+            # print('separations: ',separations)
+            
+            #Unpack node attributes
+            node_attr = self.particle_graphs[FIELD_MAP['gravity']].node_attr #N,15
+            part_ids = node_attr[:,ID_IND] #N
+            grid_ids = node_attr[:,GRID_IND] #N
+            class_ids = node_attr[:,CLASS_IND] #N 
+            positions = self.particle_graphs[FIELD_MAP['gravity']].node_attr[:,X_IND:Z_IND+1] #N,3 - total
+            velocities = self.particle_graphs[FIELD_MAP['gravity']].node_attr[:,VX_IND:VZ_IND+1]  #N,3
+            momenta = self.particle_graphs[FIELD_MAP['gravity']].node_attr[:,PX_IND:PZ_IND+1] #N,3
+            masses = self.particle_graphs[FIELD_MAP['gravity']].node_attr[:,M_IND] #N
+            charges = self.particle_graphs[FIELD_MAP['gravity']].node_attr[:,Q_IND] #N
+            spins = self.particle_graphs[FIELD_MAP['gravity']].node_attr[:,S_IND] #N
+            gammas = relativity.calc_gamma(velocities,c=self.c) #N
+            
+            # print('node_attr: ',node_attr)
+            # print('part_ids: ',part_ids)
+            # print('grid_ids: ',grid_ids)
+            # print('class_ids: ',class_ids)
+            # print('positions: ',positions)
+            # print('velocities: ',velocities)
+            # print('momenta: ',momenta)
+            # print('masses: ',masses)
+            # print('charges: ',charges)
+            # print('spins: ',spins)
+            # print('gammas: ',gammas)
+            # print('dts: ',dts)
+            
             t1 = time()
-            print(f'----Converting to torch tensors took {t1-t0:.3f} seconds')
+            print(f'----Unpacking particle graph took {t1-t0:.3f} seconds')
+            #Compute forces and length contracted distances
+            forces,distances = interactions.compute_gpu_forces(edge_index,distances, rel_velocities, separations, positions, velocities, momenta, masses, charges, spins
+                       ,dts
+                       ,G=self.G, K=self.K, k=self.k, c=self.c)
+            momenta += forces*self.dt*gammas.view(-1,1) #p = F*dt*gamma
+            velocities += momenta/(masses.view(-1,1)*gammas.view(-1,1)) #v = p/m*gamma
+            positions += gammas.view(-1,1)*velocities*self.dt #dx = v*dt*gamma
+            rel_velocities = relativity.compute_rel_vel_tt(edge_index,velocities,c=self.c)
+            print('forces: ',forces)
+            print('momenta: ',momenta)
+            print('velocities: ',velocities)
+            print('positions: ',positions)
+            print('rel_velocities: ',rel_velocities)
             
-            for j,part_mask in enumerate(grid_masks):
-                filtered_particles = [p for p, m in zip(particles, part_mask) if m]
-                for i,particle in enumerate(filtered_particles):
-                    self_mask = self_masks[i] #mask of particles that are not self
-                    displacement_vector_tt = displacement_cache_tt[i]
-                    separation_vector_tt = sepration_cache_tt[i]
-                    
-                    particle.update_force(displacement_vector_tt[part_mask & self_mask], mass_vector_tt[part_mask & self_mask], charge_vector_tt[part_mask & self_mask], spin_vector_tt[part_mask & self_mask], radius_vector_tt[part_mask & self_mask], separation_vector_tt[part_mask & self_mask],
-                                        G=self.G,K=self.K,k=self.k,use_cpu=False,device=self.device)
-                particle.update_state(self.timestep, displacement_vector_tt[part_mask & self_mask], velocity_vector_tt[part_mask & self_mask], use_cpu=False,device=self.device)
-            for i,particle in enumerate(particles):
-                self_mask = self_masks[i]
-                displacement_vector_tt = displacement_cache_tt[i]
-                separation_vector_tt = sepration_cache_tt[i]
-                particle.update_force(displacement_vector_tt[self_mask], mass_vector_tt[self_mask], charge_vector_tt[self_mask], spin_vector_tt[self_mask], radius_vector_tt[self_mask], separation_vector_tt[self_mask],
-                                        G=self.G,K=self.K,k=self.k,use_cpu=False,device=self.device)
-                particle.update_state(self.timestep, displacement_vector_tt[self_mask], velocity_vector_tt[self_mask], use_cpu=False,device=self.device)
             t2 = time()
-            print(f'----GPU Physics update took {t2-t0:.3f} seconds')
-        def cpu_update(particles):
-            for i,particle in enumerate(particles):
-                self_mask = self.mask_self_particles(particle)
-                displacement_vector = displacement_cache[i]
-                separation_vector = np.array([p.radius+particle.radius for p in self.particles])
-                particle.update_force(displacement_vector[self_mask], mass_vector[self_mask], charge_vector[self_mask], spin_vector[self_mask], radius_vector[self_mask], separation_vector[self_mask],
-                                        G=self.G,K=self.K,k=self.k,use_cpu=True)
-                particle.update_state(self.timestep, displacement_vector[self_mask], velocity_vector[self_mask], use_cpu=True)
+            print(f'----Computing forces took {t2-t1:.3f} seconds')
             
-        
-        # update particles
-        if self.use_cpu and not self.compare:
-            cpu_update(self.particles)
-        elif not self.compare and not self.use_cpu:
-            gpu_update(self.particles)
-        elif self.compare:
-            particles_cpu = self.particles.copy()
-            ta = time()
-            gpu_update(self.particles)
-            tb = time()
-            cpu_update(particles_cpu)
-            tc = time()
-            print(f'--Physics update took {tb-ta:.3f} seconds (GPU) and {tc-tb:.3f} seconds (CPU)')
+            #Update particle graph
+            node_attr[:,X_IND:Z_IND+1] = positions
+            node_attr[:,VX_IND:VZ_IND+1] = velocities
+            node_attr[:,PX_IND:PZ_IND+1] = momenta
+            node_attr[:,GRID_IND] = grid_ids
+            
+            edge_attr[:,DX_IND:DZ_IND+1] = distances
+            edge_attr[:,RVX_IND:RVZ_IND+1] = rel_velocities
+            self.particle_graphs[FIELD_MAP['gravity']].node_attr = node_attr
+            self.particle_graphs[FIELD_MAP['gravity']].edge_attr = edge_attr
+            t3 = time()
+            print(f'----Updating particle graph took {t3-t2:.3f} seconds')
+            
+            #Update particles
+            forces = forces.cpu().numpy()
+            velocities = velocities.cpu().numpy()
+            positions = positions.cpu().numpy()
+            part_ids = np.array(part_ids.cpu().numpy(),dtype=int)
+            for i in part_ids: #match particle ids to graph ids
+                particles[i].update_state(forces[i],velocities[i],positions[i])
+                particles[i].assign_grid_id(self.fields[FIELD_MAP['gravity']])
+                grid_ids[i] = node_attr[i,GRID_IND] #update grid ids
+            #self.assign_grid_ids()
+            t4 = time()
+            print(f'----Updating particles took {t4-t3:.3f} seconds')
+            #TODO: update particle graph's grid ids
+            #self.particle_graphs[FIELD_MAP['gravity']].edge_index = edge_index
+            
+            return particles
+            
+        def update_particle_fields(particles,fields):   
+            t0 = time() 
+            for i,field in enumerate(self.fields):
+                print(self.particle_graphs[FIELD_MAP['gravity']])
+                print(i,field)
+                if field.dynamic:
+                    field.update(self.particle_graphs[i])
+            t1 = time()
+            print(f'---Updating fields took {t1-t0:.3f} seconds')
+        if not self.use_fields:
+            update_particle_forces(self.particles)
         if self.boundary is not None:
+            t2 = time()
             self.boundary.update_velocities(self.particles)
+            t3 = time()
+            print(f'---Reflecting off boundary took {t3-t2:.3f} seconds')
         if self.store_values:
             self.update_particle_history()
-        t2 = time()
-        self.assign_grid_ids()
-        t3 = time()
-        print(f'---Assigning grid ids took {t3-t2:.3f} seconds')
+        t4 = time()
+        t5 = time()
+        print(f'---Making particle graphs took {t4-t3:.3f} seconds')
+        print(f'---Assigning grid ids took {t5-t4:.3f} seconds')
         self.updates += 1
-        if not self.compare:
-            print(f'--Physics update {self.updates} took {t3-t0:.3f} seconds')
 
     def animate(self, frame):
         print(f'Frame {frame}')
         
         # Update particles
         for _ in range(self.animate_every):
-            self.update_particles()
+            self.update_physics()
         t1 = time()
         for data, particle in zip(self.particles_data, self.particles):
-            data.set_data(particle.position[0], particle.position[1])
+           data._offsets3d = ([particle.position[0]],[particle.position[1]],[particle.position[2]])
+        if self.show_field_ind is not None:
+           self.update_field_plot()
+            
         if self.show_trails:
-            self.update_trails()
+           self.update_trails()
         self.scale_animation()
         t2 = time()
         print(f'-Animation took {t2-t1:.3f} seconds')
@@ -302,12 +380,12 @@ class Simulation:
         if show_animation:
             plt.show()
 
-    def simulate(self, updates=100, compare=False, **kwargs):
+    def simulate(self, updates=100, **kwargs):
         os.makedirs(self.save_dir,exist_ok=True)
         self.updates=0
         self.init_particle_history(updates)
         for i in range(updates):
-            self.update_particles()
+            self.update_physics()
         self.save_particle_info()
         self.save_particle_history()
 
