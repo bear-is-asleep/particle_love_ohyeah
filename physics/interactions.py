@@ -32,14 +32,20 @@ def compute_gpu_forces(edge_index,distances, rel_velocities,separations, positio
     """
     # Perform Lorentz transformations
     _, distances = relativity.compute_boost(dts, distances, rel_velocities, c=c)
-    #print('distances in func:',distances)
     
 
     # Calculate the norms (r) and normalized displacement vectors (rhat)
-    rhats = -distances / torch.norm(distances, dim=1).view(-1,1)
+    rhats = distances / torch.norm(distances, dim=1).view(-1,1)
     distance_squares = torch.sum(distances ** 2, dim=1)
     separation_squares = separations ** 2
-    rs = torch.max(separation_squares, distance_squares)  # Set r = max(r, |r_i - r_j|) to avoid division by zero
+    r2s = torch.max(separation_squares, distance_squares)  # Set r = max(r, |r_i - r_j|) to avoid division by zero
+
+    print('distances',distances)
+    print('rhats',rhats)
+    print('distance_squares',distance_squares)
+    print('separation_squares',separation_squares)
+    print('r2s',r2s)
+    
 
     # Compute electric field
     #torch.cross(positions, velocities)
@@ -47,14 +53,9 @@ def compute_gpu_forces(edge_index,distances, rel_velocities,separations, positio
     # Compute gravitational field contributions and sum them up
     masses = masses[edge_index][0].view(-1,1)
     other_masses = masses[edge_index][1].view(-1,1)
-    forces = G * masses*other_masses / rs.view(-1,1)**2 * rhats
+    forces = G * masses*other_masses / r2s.view(-1,1) * rhats
     
     #Convert forces back to shape (N,3)
-    
-    # print('rs: ',rs)
-    # print('rhats: ',rhats)
-    # print('forces in func:',forces)
-    # print('accumulated forces:',accumulate_forces(edge_index,forces,positions.shape[0]))
     forces = accumulate_edges(edge_index,forces,positions.shape[0])
     return forces,distances
 
@@ -66,9 +67,8 @@ def accumulate_edges(edge_index, edge_values, N):
     source_nodes = edge_index[0]
     target_nodes = edge_index[1]
 
-    # For each edge, add the force to both the source and target nodes
     node_values.scatter_add_(0, source_nodes.unsqueeze(1).expand(-1, 3), edge_values)
-    #forces.scatter_add_(0, target_nodes.unsqueeze(1).expand(-1, 3), -edge_forces)
+    #node_values.scatter_add_(0, target_nodes.unsqueeze(1).expand(-1, 3), edge_values)
 
     return node_values
     

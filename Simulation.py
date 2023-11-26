@@ -22,6 +22,8 @@ class Simulation:
                  ,show_field_ind=None #index of field to show
                  ,compare=False
                  ,use_fields=False
+                 ,elev=20
+                 ,azim=0
                  ,G=1
                  ,k=1
                  ,K=1
@@ -46,11 +48,13 @@ class Simulation:
         self.use_fields = use_fields
         
         # Set style
+        self.elev = elev
+        self.azim = azim
         self.fig = plt.figure(figsize=(15,9))
         self.ax = self.fig.add_subplot(projection='3d')
         self.fig.patch.set_facecolor('black')
         self.fig.subplots_adjust(right=0.7) #make room for legend
-        plotters.set_style(self.ax, facecolor='black', axis_off=True)
+        plotters.set_style(self.ax, facecolor='black', axis_off=True, elev=elev, azim=azim)
         
         #Set animation properties
         self.ani = None
@@ -266,7 +270,7 @@ class Simulation:
             gammas = relativity.calc_gamma(velocities,c=self.c) #N
             
             # print('node_attr: ',node_attr)
-            # print('part_ids: ',part_ids)
+            print('part_ids: ',part_ids)
             # print('grid_ids: ',grid_ids)
             # print('class_ids: ',class_ids)
             # print('positions: ',positions)
@@ -288,6 +292,7 @@ class Simulation:
             velocities += momenta/(masses.view(-1,1)*gammas.view(-1,1)) #v = p/m*gamma
             positions += gammas.view(-1,1)*velocities*self.dt #dx = v*dt*gamma
             rel_velocities = relativity.compute_rel_vel_tt(edge_index,velocities,c=self.c)
+            distances = relativity.compute_distances_tt(edge_index,positions)
             print('forces: ',forces)
             print('momenta: ',momenta)
             print('velocities: ',velocities)
@@ -301,12 +306,9 @@ class Simulation:
             node_attr[:,X_IND:Z_IND+1] = positions
             node_attr[:,VX_IND:VZ_IND+1] = velocities
             node_attr[:,PX_IND:PZ_IND+1] = momenta
-            node_attr[:,GRID_IND] = grid_ids
             
             edge_attr[:,DX_IND:DZ_IND+1] = distances
             edge_attr[:,RVX_IND:RVZ_IND+1] = rel_velocities
-            self.particle_graphs[FIELD_MAP['gravity']].node_attr = node_attr
-            self.particle_graphs[FIELD_MAP['gravity']].edge_attr = edge_attr
             t3 = time()
             print(f'----Updating particle graph took {t3-t2:.3f} seconds')
             
@@ -314,11 +316,26 @@ class Simulation:
             forces = forces.cpu().numpy()
             velocities = velocities.cpu().numpy()
             positions = positions.cpu().numpy()
-            part_ids = np.array(part_ids.cpu().numpy(),dtype=int)
-            for i in part_ids: #match particle ids to graph ids
+            part_ids_cpu = np.array(part_ids.cpu().numpy(),dtype=int)
+            for i in part_ids_cpu: #match particle ids to graph ids
                 particles[i].update_state(forces[i],velocities[i],positions[i])
                 particles[i].assign_grid_id(self.fields[FIELD_MAP['gravity']])
                 grid_ids[i] = node_attr[i,GRID_IND] #update grid ids
+                part_ids[i] = node_attr[i,ID_IND] #update particle ids
+                class_ids[i] = node_attr[i,CLASS_IND] #update class ids
+                masses[i] = node_attr[i,M_IND] #update masses
+                charges[i] = node_attr[i,Q_IND] #update charges
+                spins[i] = node_attr[i,S_IND] #update spins
+            #Further update static properties since they can get swapped in order
+            node_attr[:,GRID_IND] = grid_ids
+            # node_attr[:,ID_IND] = part_ids
+            # node_attr[:,CLASS_IND] = class_ids
+            # node_attr[:,M_IND] = masses
+            # node_attr[:,Q_IND] = charges
+            # node_attr[:,S_IND] = spins
+            
+            self.particle_graphs[FIELD_MAP['gravity']].node_attr = node_attr
+            self.particle_graphs[FIELD_MAP['gravity']].edge_attr = edge_attr
             #self.assign_grid_ids()
             t4 = time()
             print(f'----Updating particles took {t4-t3:.3f} seconds')
@@ -368,6 +385,9 @@ class Simulation:
         self.scale_animation()
         t2 = time()
         print(f'-Animation took {t2-t1:.3f} seconds')
+        #Rotate the view
+        #self.azim += 0.5
+        self.ax.view_init(elev=self.elev, azim=self.azim)
         if self.show_trails:
             return self.trail_data + self.particles_data
         return self.particles_data

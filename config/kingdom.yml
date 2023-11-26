@@ -1,6 +1,6 @@
 particle1:
-  n: 20
-  mass: 100.0
+  n: 2
+  mass: 10000.0
   charge: 0
   spin: 0
   radius: 100

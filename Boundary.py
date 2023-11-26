@@ -25,12 +25,18 @@ class Boundary:
             for particle in particles:
                 if particle.position[0] - particle.radius < self.x_min or particle.position[0] + particle.radius > self.x_max:
                     particle.velocity[0] *= -1
+                    particle.momentum[0] *= -1
+                    particle.position[0] = np.clip(particle.position[0],self.x_min+particle.radius,self.x_max-particle.radius)
                     #print('reflecting x: ',particle.position,particle.velocity)
                 if particle.position[1] - particle.radius < self.y_min or particle.position[1] + particle.radius > self.y_max:
                     particle.velocity[1] *= -1
+                    particle.momentum[1] *= -1
+                    particle.position[1] = np.clip(particle.position[1],self.y_min+particle.radius,self.y_max-particle.radius)
                     #print('reflecting y: ',particle.position,particle.velocity)
                 if particle.position[2] - particle.radius < self.z_min or particle.position[2] + particle.radius > self.z_max:
                     particle.velocity[2] *= -1
+                    particle.momentum[2] *= -1
+                    particle.position[2] = np.clip(particle.position[2],self.z_min+particle.radius,self.z_max-particle.radius)
                     #print('reflecting z: ',particle.position,particle.velocity)
     def make_3dpatches(self,**kwargs):
                 # Define vertices for each rectangle face of the cuboid

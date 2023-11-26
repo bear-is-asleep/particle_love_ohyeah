@@ -45,11 +45,15 @@ def compute_rel_vel_tt(edge_index,velocities,c=1):
     gammai = calc_gamma(vi,c=c).view(-1,1)
     vivj = torch.einsum('ij,ij->i', vi,vj).view(-1,1)
     vi2 = torch.norm(vi,dim=1).view(-1,1)**2
-    print('vi2',vi2)
-    print('vivj',vivj)
-    print('gammai',gammai)
-    print('vi',vi)
-    print('vj',vj)
-    print()
+
     rel_vel = 1/(gammai*(1-vivj/c**2))*(vj-vi+vi*(gammai-1)*(vivj/vi2-1))
     return rel_vel
+
+def compute_distances_tt(edge_index,positions):
+    source_nodes = edge_index[0]
+    target_nodes = edge_index[1]
+    
+    xi = positions[source_nodes]
+    xj = positions[target_nodes]
+    distances = xj-xi
+    return distances

@@ -154,8 +154,11 @@ elif sim_mode == 'simulate':
   #Copy yamls to save directory
 	copy_yamls(save_path)
 
+
 elif sim_mode == 'save':
 	sim.save(fps=fps,bitrate=bitrate,frames=frames,interval=interval)
+	copy_yamls(save_path)
+	print(f'Saved to {save_path}')
 elif sim_mode == ['simulate','save']:
 	sim.store_values = True #always store values when simulating
 	sim.simulate_and_save(frames=frames,fps=fps,bitrate=bitrate,interval=interval)
